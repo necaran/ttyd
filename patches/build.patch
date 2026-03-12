@@ -1,0 +1,9 @@
+diff --git a/scripts/cross-build.sh b/scripts/cross-build.sh
+index 932263d..6411fe9 100755
+--- a/scripts/cross-build.sh
++++ b/scripts/cross-build.sh
+@@ -20,3 +20,3 @@ build_zlib() {
+     echo "=== Building zlib-${ZLIB_VERSION} (${TARGET})..."
+-    curl -fSsLo- "https://zlib.net/zlib-${ZLIB_VERSION}.tar.gz" | tar xz -C "${BUILD_DIR}"
++    curl -fSsLo- "https://github.com/madler/zlib/releases/download/v${ZLIB_VERSION}/zlib-${ZLIB_VERSION}.tar.gz" | tar xz -C "${BUILD_DIR}"
+     pushd "${BUILD_DIR}"/zlib-"${ZLIB_VERSION}"

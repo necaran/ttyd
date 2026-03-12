@@ -1,0 +1,162 @@
+name: release
+
+on:
+  push:
+    tags: ["*"]
+env:
+  BRANCH_DIFF: build-diff
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+permissions:
+  actions: write
+  contents: write
+
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Clone to tmp dir
+      run: |
+        git clone --depth=1 --branch=${{github.ref_name}} $GITHUB_SERVER_URL/$GITHUB_REPOSITORY /tmp/_/
+        gh release delete ${{github.ref_name}} --cleanup-tag --yes
+    - name: Checkout main
+      uses: actions/checkout@v6
+      with:
+        ref: main
+        fetch-depth: 0
+    - name: Patch ttyd
+      run: |
+        git remote add upstream https://github.com/tsl0922/ttyd.git
+        git pull --tags upstream main
+        git push --tags origin main
+
+        git branch ${{env.BRANCH_DIFF}}
+        git switch ${{env.BRANCH_DIFF}}
+        git apply -v /tmp/_/patches/*.patch
+        git add .
+        git config user.name 'github-actions[bot]'
+        git config user.email 'github-actions[bot]@users.noreply.github.com'
+        git commit -m 'chore: patch'
+        git push -f origin ${{env.BRANCH_DIFF}}
+
+        TAG=$(git describe --tags --abbrev=0)-$(git rev-parse --short HEAD)
+        git tag ${TAG}
+        gh workflow disable ${{github.workflow}}
+        git push -f origin ${TAG}
+        gh workflow enable ${{github.workflow}}
+        gh release create ${TAG} --title ${TAG} --draft
+
+        sudo apt-get update
+        sudo apt-get install --no-install-recommends --no-install-suggests -y fontforge
+        FONT_FILE=SymbolsNerdFontMono-Regular.ttf
+        wget -nv -O- https://github.com/ryanoasis/nerd-fonts/releases/latest/download/NerdFontsSymbolsOnly.tar.xz |
+        tar vxJ --directory=/tmp/ ${FONT_FILE}
+        fontforge -lang=ff -c 'Open($1);Generate($2)' /tmp/${FONT_FILE} ./html/src/style/${FONT_FILE%.*}.woff2
+        FONT_FILE=UbuntuMono-Bront.ttf
+        wget -nv -O /tmp/${FONT_FILE} https://raw.githubusercontent.com/necaran/bront/refs/heads/master/${FONT_FILE}
+        fontforge -lang=ff -c 'Open($1);Generate($2)' /tmp/${FONT_FILE} ./html/src/style/${FONT_FILE%.*}.woff2
+    - uses: actions/setup-node@v6
+      with:
+        node-version: 24
+    - name: Install dependencies
+      working-directory: html
+      run: |
+        corepack enable
+        corepack prepare yarn@stable --activate
+        yarn add --dev eslint-plugin-n uglify-js
+        yarn install
+        yarn run check
+    - name: Patch dependencies
+      working-directory: html
+      run: |
+        FILE=node_modules/@xterm/xterm/lib/xterm.js
+        echo ---
+        echo "* $FILE"
+        grep "$FILE" -m1 -oe 'this\.dimensions\.device\.char\.width=this\._charSizeService\.width\*[^,]\+,' &&
+        sed "$FILE" -i -e 's@=\(this\._charSizeService\.width\*[^,]\+\)@=Math.floor(\1)@'
+        echo "* $FILE patched"
+        grep "$FILE" -m1 -oe 'this\.dimensions\.device\.char\.width=Math.floor(this\._charSizeService\.width\*[^,]\+),'
+        echo ---
+        echo "* $FILE"
+        grep "$FILE" -m1 -oe 'css:"rgba(255, 255, 255, 0.3)",rgba:4294967117' &&
+        sed "$FILE" -i -e 's@css:"rgba(255, 255, 255, 0\.3)",rgba:4294967117@css:"#fff3",rgba:0xffffff33@'
+        echo "* $FILE patched"
+        grep "$FILE" -m1 -oe 'css:"#fff3",rgba:0xffffff33'
+        echo ---
+        FILE=node_modules/@xterm/xterm/css/xterm.css
+        echo "* $FILE"
+        grep "$FILE" -e '-ms-user-select' &&
+        sed "$FILE" -i -e '/-ms-user-select/d'
+        echo "* $FILE patched"
+        grep "$FILE" -e '-ms-user-select' || true
+        echo ---
+    - name: Build frontend
+      working-directory: html
+      run: yarn run build
+    - name: Create tar
+      run: tar czf /tmp/ttyd.tar.gz .
+    - uses: actions/upload-artifact@v7
+      with:
+        archive: false
+        path: /tmp/ttyd.tar.gz
+
+
+  backend:
+    needs: [frontend]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [i686, x86_64, arm, armhf, aarch64, mips, mipsel, mips64, mips64el, s390x, win32, win64]
+    steps:
+    - uses: actions/download-artifact@v8
+      with:
+        name: ttyd.tar.gz
+    - name: Extract tar
+      run: tar xzf ttyd.tar.gz --strip-components=1
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install --no-install-recommends --no-install-suggests -y autoconf automake build-essential cmake curl file libtool
+    - name: Cross build (${{ matrix.target }})
+      env:
+        BUILD_TARGET: ${{ matrix.target }}
+      run: ./scripts/cross-build.sh
+    - name: Upload to release
+      working-directory: build
+      run: |
+        [ -e 'ttyd.exe' ] &&
+        mv -v ttyd.exe ttyd.${{matrix.target}}.exe ||
+        mv -v ttyd ttyd.${{matrix.target}}
+        TAG=$(git describe --tags)
+        gh release upload ${TAG} ttyd.*
+
+
+  backend_macos:
+    needs: [frontend]
+    strategy:
+      matrix:
+        include:
+        - target: arm64
+          runner: macos-latest
+        - target: x86_64
+          runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
+    steps:
+    - uses: actions/download-artifact@v8
+      with:
+        name: ttyd.tar.gz
+    - name: Extract tar
+      run: tar xzf ttyd.tar.gz --strip-components=1
+    - name: Install dependencies
+      run: brew install --quiet autoconf automake cmake curl libtool
+    - name: Build (${{ matrix.target }})
+      run: |
+        sudo ./scripts/darwin-build.sh
+        otool -L build/ttyd
+    - name: Upload to release
+      working-directory: build
+      run: |
+        sudo mv -v ttyd ttyd.darwin.${{matrix.target}}
+        TAG=$(git describe --tags)
+        gh release upload ${TAG} ttyd.*

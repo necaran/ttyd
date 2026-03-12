@@ -1,0 +1,143 @@
+diff --git a/html/src/components/app.tsx b/html/src/components/app.tsx
+index 52cf411..82554ca 100644
+--- a/html/src/components/app.tsx
++++ b/html/src/components/app.tsx
+@@ -12,3 +12,3 @@ const tokenUrl = [window.location.protocol, '//', window.location.host, path, '/
+ const clientOptions = {
+-    rendererType: 'webgl',
++    rendererType: 'canvas',
+     disableLeaveAlert: false,
+@@ -23,7 +23,9 @@ const clientOptions = {
+ const termOptions = {
+-    fontSize: 13,
+-    fontFamily: 'Consolas,Liberation Mono,Menlo,Courier,monospace',
++    allowTransparency: true,
++    fontFamily: '_,M,monospace',
++    fontSize: 16,
++    lineHeight: 1.125,
+     theme: {
+         foreground: '#d2d2d2',
+-        background: '#2b2b2b',
++        background: '#1110',
+         cursor: '#adadad',
+diff --git a/html/src/components/terminal/xterm/addons/overlay.ts b/html/src/components/terminal/xterm/addons/overlay.ts
+index 74da079..5e25624 100644
+--- a/html/src/components/terminal/xterm/addons/overlay.ts
++++ b/html/src/components/terminal/xterm/addons/overlay.ts
+@@ -12,11 +12,4 @@ export class OverlayAddon implements ITerminalAddon {
+         this.overlayNode = document.createElement('div');
+-        this.overlayNode.style.cssText = `border-radius: 15px;
+-font-size: xx-large;
+-opacity: 0.75;
+-padding: 0.2em 0.5em 0.2em 0.5em;
+-position: absolute;
+--webkit-user-select: none;
+--webkit-transition: opacity 180ms ease-in;
+--moz-user-select: none;
+--moz-transition: opacity 180ms ease-in;`;
++        this.overlayNode.style.cssText =
++            'border-radius:15px;font-size:xx-large;opacity:0.75;padding:0.2em 0.5em;position:absolute;-webkit-user-select:none;user-select:none;transition:opacity 180ms ease-in';
+ 
+@@ -43,4 +36,4 @@ position: absolute;
+ 
+-        overlayNode.style.color = '#101010';
+-        overlayNode.style.backgroundColor = '#f0f0f0';
++        overlayNode.style.color = '#eee';
++        overlayNode.style.backgroundColor = '#000';
+         overlayNode.textContent = msg;
+diff --git a/html/src/components/terminal/xterm/index.ts b/html/src/components/terminal/xterm/index.ts
+index b332154..efbb108 100644
+--- a/html/src/components/terminal/xterm/index.ts
++++ b/html/src/components/terminal/xterm/index.ts
+@@ -460,2 +460,16 @@ export class Xterm {
+                     if (terminal.options[key] instanceof Object) {
++                        const { background } = value;
++                        if (background) {
++                            const styleSheet = (document.adoptedStyleSheets[0] = new CSSStyleSheet()),
++                                style = (
++                                    styleSheet.cssRules[styleSheet.insertRule('.xterm-viewport{}')] as CSSStyleRule
++                                ).style;
++                            style.setProperty('background', background, 'important');
++                            value.background = style.backgroundColor
++                                .replace(
++                                    /.+?(\d+), (\d+), (\d+).+/,
++                                    (m, r, g, b) => `rgba(${r < 17 ? 17 : r},${g < 17 ? 17 : g},${b < 17 ? 17 : b},0)`
++                                )
++                                .replace(/^$|transparent/, '#1110');
++                        }
+                         terminal.options[key] = Object.assign({}, terminal.options[key], value);
+diff --git a/html/src/style/index.scss b/html/src/style/index.scss
+index 0f9244b..ad7d2c6 100644
+--- a/html/src/style/index.scss
++++ b/html/src/style/index.scss
+@@ -13,6 +13,22 @@ body {
+   padding: 0;
+-  .terminal {
+-    padding: 5px;
+-    height: calc(100% - 10px);
+-  }
++}
++
++.xterm {
++  height: 100%;
++  margin-right: 15px;
++}
++
++html {
++  color-scheme: dark;
++  margin-right: -15px;
++}
++
++@font-face {
++  font-family: _;
++  src: url(SymbolsNerdFontMono-Regular.woff2) format(WOFF2);
++}
++
++@font-face {
++  font-family: M;
++  src: url(UbuntuMono-Bront.woff2) format(WOFF2);
+ }
+diff --git a/html/src/template.html b/html/src/template.html
+index 80ee93c..e123cb0 100644
+--- a/html/src/template.html
++++ b/html/src/template.html
+@@ -7,3 +7,3 @@
+     <title><%= htmlWebpackPlugin.options.title %></title>
+-    <link inline rel="icon" type="image/png" href="favicon.png">
++    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHN0cm9rZT0iY3VycmVudENvbG9yIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIHN0cm9rZS13aWR0aD0iMiIgdmlld0JveD0iMCAwIDI0IDI0Ij48c3R5bGU+QG1lZGlhKHByZWZlcnMtY29sb3Itc2NoZW1lOmRhcmspe3N2Z3tjb2xvcjojZWVlfX08L3N0eWxlPjxwYXRoIGQ9Im04IDkgMyAzLTMgM201IDBoM00zIDZhMiAyIDAgMCAxIDItMmgxNGEyIDIgMCAwIDEgMiAydjEyYTIgMiAwIDAgMS0yIDJINWEyIDIgMCAwIDEtMi0yeiIvPjwvc3ZnPg==">
+     <% for (const css in htmlWebpackPlugin.files.css) { %>
+diff --git a/html/webpack.config.js b/html/webpack.config.js
+index 18bfcf3..e635f9c 100644
+--- a/html/webpack.config.js
++++ b/html/webpack.config.js
+@@ -3,3 +3,2 @@ const { merge } = require('webpack-merge');
+ const ESLintPlugin = require('eslint-webpack-plugin');
+-const CopyWebpackPlugin = require('copy-webpack-plugin');
+ const HtmlWebpackPlugin = require('html-webpack-plugin');
+@@ -31,2 +30,6 @@ const baseConfig = {
+             },
++            {
++                test: /\.(ttf|otf|eot|woff|woff2)$/,
++                type: 'asset/inline',
++            },
+         ],
+@@ -41,5 +44,2 @@ const baseConfig = {
+         }),
+-        new CopyWebpackPlugin({
+-            patterns: [{ from: './favicon.png', to: '.' }],
+-        }),
+         new MiniCssExtractPlugin({
+@@ -54,3 +54,3 @@ const baseConfig = {
+             },
+-            title: 'ttyd - Terminal',
++            title: 'ttyd',
+             template: './template.html',
+diff --git a/src/http.c b/src/http.c
+index b9f620e..155dafe 100644
+--- a/src/http.c
++++ b/src/http.c
+@@ -157,3 +157,3 @@ int callback_http(struct lws *wsi, enum lws_callback_reasons reason, void *user,
+             lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_CONTENT_TYPE, (const unsigned char *)content_type, 9, &p,
+-                                         end))
++                                         end) || lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_CACHE_CONTROL, (const unsigned char *)"public, max-age=31536000", 24, &p, end))
+           return 1;
