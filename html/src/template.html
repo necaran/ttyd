@@ -5,7 +5,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
     <meta name="mobile-web-app-capable" content="yes">
     <title><%= htmlWebpackPlugin.options.title %></title>
-    <link inline rel="icon" type="image/png" href="favicon.png">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHN0cm9rZT0iY3VycmVudENvbG9yIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIHN0cm9rZS13aWR0aD0iMiIgdmlld0JveD0iMCAwIDI0IDI0Ij48c3R5bGU+QG1lZGlhKHByZWZlcnMtY29sb3Itc2NoZW1lOmRhcmspe3N2Z3tjb2xvcjojZWVlfX08L3N0eWxlPjxwYXRoIGQ9Im04IDkgMyAzLTMgM201IDBoM00zIDZhMiAyIDAgMCAxIDItMmgxNGEyIDIgMCAwIDEgMiAydjEyYTIgMiAwIDAgMS0yIDJINWEyIDIgMCAwIDEtMi0yeiIvPjwvc3ZnPg==">
     <% for (const css in htmlWebpackPlugin.files.css) { %>
     <link inline rel="stylesheet" type="text/css" href="<%= htmlWebpackPlugin.files.css[css] %>">
     <% } %>

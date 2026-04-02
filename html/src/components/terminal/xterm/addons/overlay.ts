@@ -10,15 +10,8 @@ export class OverlayAddon implements ITerminalAddon {
 
     constructor() {
         this.overlayNode = document.createElement('div');
-        this.overlayNode.style.cssText = `border-radius: 15px;
-font-size: xx-large;
-opacity: 0.75;
-padding: 0.2em 0.5em 0.2em 0.5em;
-position: absolute;
--webkit-user-select: none;
--webkit-transition: opacity 180ms ease-in;
--moz-user-select: none;
--moz-transition: opacity 180ms ease-in;`;
+        this.overlayNode.style.cssText =
+            'border-radius:15px;font-size:xx-large;opacity:0.75;padding:0.2em 0.5em;position:absolute;-webkit-user-select:none;user-select:none;transition:opacity 180ms ease-in';
 
         this.overlayNode.addEventListener(
             'mousedown',
@@ -41,8 +34,8 @@ position: absolute;
         const { terminal, overlayNode } = this;
         if (!terminal.element) return;
 
-        overlayNode.style.color = '#101010';
-        overlayNode.style.backgroundColor = '#f0f0f0';
+        overlayNode.style.color = '#eee';
+        overlayNode.style.backgroundColor = '#000';
         overlayNode.textContent = msg;
         overlayNode.style.opacity = '0.75';
 
