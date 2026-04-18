@@ -5,7 +5,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
     <meta name="mobile-web-app-capable" content="yes">
     <title><%= htmlWebpackPlugin.options.title %></title>
-    <link inline rel="icon" type="image/png" href="favicon.png">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='currentColor' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' viewBox='0 0 24 24'><style>@media(prefers-color-scheme:dark){svg{color:white}}</style><path d='m8 9 3 3-3 3m5 0h3M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/></svg>">
     <% for (const css in htmlWebpackPlugin.files.css) { %>
     <link inline rel="stylesheet" type="text/css" href="<%= htmlWebpackPlugin.files.css[css] %>">
     <% } %>
