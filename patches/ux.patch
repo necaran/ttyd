@@ -98,13 +98,13 @@ index 0f9244b..ad7d2c6 100644
 +  src: url(UbuntuMono-Bront.woff2) format(WOFF2);
  }
 diff --git a/html/src/template.html b/html/src/template.html
-index 80ee93c..e123cb0 100644
+index 80ee93c..9d5f0ee 100644
 --- a/html/src/template.html
 +++ b/html/src/template.html
 @@ -7,3 +7,3 @@
      <title><%= htmlWebpackPlugin.options.title %></title>
 -    <link inline rel="icon" type="image/png" href="favicon.png">
-+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHN0cm9rZT0iY3VycmVudENvbG9yIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIHN0cm9rZS13aWR0aD0iMiIgdmlld0JveD0iMCAwIDI0IDI0Ij48c3R5bGU+QG1lZGlhKHByZWZlcnMtY29sb3Itc2NoZW1lOmRhcmspe3N2Z3tjb2xvcjojZWVlfX08L3N0eWxlPjxwYXRoIGQ9Im04IDkgMyAzLTMgM201IDBoM00zIDZhMiAyIDAgMCAxIDItMmgxNGEyIDIgMCAwIDEgMiAydjEyYTIgMiAwIDAgMS0yIDJINWEyIDIgMCAwIDEtMi0yeiIvPjwvc3ZnPg==">
++    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='currentColor' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' viewBox='0 0 24 24'><style>@media(prefers-color-scheme:dark){svg{color:white}}</style><path d='m8 9 3 3-3 3m5 0h3M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/></svg>">
      <% for (const css in htmlWebpackPlugin.files.css) { %>
 diff --git a/html/webpack.config.js b/html/webpack.config.js
 index 18bfcf3..e635f9c 100644
