@@ -1,9 +1,9 @@
 diff --git a/scripts/darwin-build.sh b/scripts/darwin-build.sh
 new file mode 100755
-index 0000000..b15bddc
+index 0000000..b0b83e7
 --- /dev/null
 +++ b/scripts/darwin-build.sh
-@@ -0,0 +1,132 @@
+@@ -0,0 +1,145 @@
 +#!/bin/bash
 +#
 +# Example:
@@ -66,6 +66,19 @@ index 0000000..b15bddc
 +    curl -fSsLo- "https://github.com/warmcat/libwebsockets/archive/v${LIBWEBSOCKETS_VERSION}.tar.gz" | tar xz -C "${BUILD_DIR}"
 +    pushd "${BUILD_DIR}/libwebsockets-${LIBWEBSOCKETS_VERSION}"
 +        sed -i '' 's/ websockets_shared//g' cmake/libwebsockets-config.cmake.in
++patch -u lib/roles/ws/ext/extension-permessage-deflate.c <<'EOF'
++diff --git a/lib/roles/ws/ext/extension-permessage-deflate.c b/lib/roles/ws/ext/extension-permessage-deflate.c
++index 790db4e0a..b492e78ce 100644
++--- a/lib/roles/ws/ext/extension-permessage-deflate.c
+++++ b/lib/roles/ws/ext/extension-permessage-deflate.c
++@@ -311 +310,0 @@ lws_extension_callback_pm_deflate(struct lws_context *context,
++-		/* COV says we can overflow if "eb_in.len == 0 and rx->avail_in == 4" */
++@@ -313,4 +311,0 @@ lws_extension_callback_pm_deflate(struct lws_context *context,
++-		if ((unsigned int)priv->rx.avail_in > (unsigned int)pmdrx->eb_in.len) {
++-			lwsl_wsi_err(wsi, "rx buffer underflow");
++-			return PMDR_FAILED;
++-		}
++EOF
 +        rm -rf build && mkdir -p build && cd build
 +        cmake \
 +            -DCMAKE_BUILD_TYPE=RELEASE \

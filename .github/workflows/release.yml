@@ -205,6 +205,40 @@ jobs:
       with:
         repository: microsoft/vcpkg
         path: vcpkg
+    - name: Patch vcpkg
+      working-directory: vcpkg
+      shell: bash
+      run: |
+        git apply -v --unidiff-zero <<'EOF'
+        diff --git a/ports/libwebsockets/portfile.cmake b/ports/libwebsockets/portfile.cmake
+        index 9d9762be..44187249 100644
+        --- a/ports/libwebsockets/portfile.cmake
+        +++ b/ports/libwebsockets/portfile.cmake
+        @@ -7,1 +7,2 @@ vcpkg_from_github(
+             PATCHES
+        +        undo-6a2542d.patch
+        diff --git a/ports/libwebsockets/undo-6a2542d.patch b/ports/libwebsockets/undo-6a2542d.patch
+        new file mode 100644
+        index 00000000..cfc615f0
+        --- /dev/null
+        +++ b/ports/libwebsockets/undo-6a2542d.patch
+        @@ -0,0 +1,15 @@
+        +diff --git a/lib/roles/ws/ext/extension-permessage-deflate.c b/lib/roles/ws/ext/extension-permessage-deflate.c
+        +index 790db4e0a..b492e78ce 100644
+        +--- a/lib/roles/ws/ext/extension-permessage-deflate.c
+        ++++ b/lib/roles/ws/ext/extension-permessage-deflate.c
+        +@@ -309,10 +309,5 @@ lws_extension_callback_pm_deflate(struct lws_context *context,
+        + 		 */
+        + 
+        +-		/* COV says we can overflow if "eb_in.len == 0 and rx->avail_in == 4" */
+        + 
+        +-		if ((unsigned int)priv->rx.avail_in > (unsigned int)pmdrx->eb_in.len) {
+        +-			lwsl_wsi_err(wsi, "rx buffer underflow");
+        +-			return PMDR_FAILED;
+        +-		}
+        + 
+        + 		pmdrx->eb_in.token = pmdrx->eb_in.token +
+        EOF
     - name: Bootstrap vcpkg
       shell: pwsh
       run: ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.bat
