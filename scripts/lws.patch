@@ -1,0 +1,13 @@
+diff --git a/lib/roles/ws/ext/extension-permessage-deflate.c b/lib/roles/ws/ext/extension-permessage-deflate.c
+index 790db4e0a..b492e78ce 100644
+--- a/lib/roles/ws/ext/extension-permessage-deflate.c
++++ b/lib/roles/ws/ext/extension-permessage-deflate.c
+@@ -310,8 +310,3 @@ lws_extension_callback_pm_deflate(struct lws_context *context,
+ 
+-		/* COV says we can overflow if "eb_in.len == 0 and rx->avail_in == 4" */
+ 
+-		if ((unsigned int)priv->rx.avail_in > (unsigned int)pmdrx->eb_in.len) {
+-			lwsl_wsi_err(wsi, "rx buffer underflow");
+-			return PMDR_FAILED;
+-		}
+ 

@@ -12,13 +12,13 @@ BUILD_TARGET="${BUILD_TARGET:-x86_64}"
 
 ZLIB_VERSION="${ZLIB_VERSION:-1.3.2}"
 JSON_C_VERSION="${JSON_C_VERSION:-0.18}"
-OPENSSL_VERSION="${OPENSSL_VERSION:-3.6.1}"
+MBEDTLS_VERSION="${MBEDTLS_VERSION:-3.6.6}"
 LIBUV_VERSION="${LIBUV_VERSION:-1.52.1}"
-LIBWEBSOCKETS_VERSION="${LIBWEBSOCKETS_VERSION:-4.5.7}"
+LIBWEBSOCKETS_VERSION="${LIBWEBSOCKETS_VERSION:-4.5.8}"
 
 build_zlib() {
     echo "=== Building zlib-${ZLIB_VERSION} (${TARGET})..."
-    curl -fSsLo- "https://zlib.net/zlib-${ZLIB_VERSION}.tar.gz" | tar xz -C "${BUILD_DIR}"
+    curl -fSsLo- "https://github.com/madler/zlib/releases/download/v${ZLIB_VERSION}/zlib-${ZLIB_VERSION}.tar.gz" | tar xz -C "${BUILD_DIR}"
     pushd "${BUILD_DIR}"/zlib-"${ZLIB_VERSION}"
         env CHOST="${TARGET}" ./configure --static --archs="-fPIC" --prefix="${STAGE_DIR}" --disable-crcvx
         make -j"$(nproc)" install
@@ -41,37 +41,17 @@ build_json-c() {
     popd
 }
 
-map_openssl_target() {
-    case $1 in
-        i686) echo linux-generic32 ;;
-        x86_64) echo linux-x86_64 ;;
-        arm|armhf|armv7l) echo linux-armv4 ;;
-        aarch64) echo linux-aarch64 ;;
-        mips|mipsel) echo linux-mips32 ;;
-        mips64|mips64el) echo linux64-mips64 ;;
-        powerpc64) echo linux-ppc64 ;;
-        powerpc64le) echo linux-ppc64le ;;
-        s390x) echo linux64-s390x ;;
-        win32) echo mingw64 ;;
-        *) echo "unknown openssl target: $1" && exit 1
-    esac
-}
-
-build_openssl() {
-    openssl_target=$(map_openssl_target "${BUILD_TARGET}")
-    echo "=== Building openssl-${OPENSSL_VERSION} (${openssl_target})..."
-    curl -sLo- "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz" | tar xz -C "${BUILD_DIR}"
-    pushd "${BUILD_DIR}/openssl-${OPENSSL_VERSION}"
-        openssl_cflags="-fPIC -latomic"
-        case ${BUILD_TARGET} in
-            s390x) openssl_cflags="${openssl_cflags} -march=z10" ;;
-            win32)
-                curl -sLo- https://github.com/openssl/openssl/pull/29826.patch | patch -p1
-                ;;
-        esac
-        env CC=gcc CROSS_COMPILE="${TARGET}-" CFLAGS="${openssl_cflags}" \
-            ./Configure "${openssl_target}" no-ssl3 no-err -DOPENSSL_SMALL_FOOTPRINT --prefix="${STAGE_DIR}" \
-        && make -j"$(nproc)" all > /dev/null && make install_sw
+build_mbedtls() {
+    echo "=== Building mbedtls-${MBEDTLS_VERSION} (${TARGET})..."
+    curl -fSsLo- "https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-${MBEDTLS_VERSION}/mbedtls-${MBEDTLS_VERSION}.tar.bz2" | tar xj -C "${BUILD_DIR}"
+    pushd "${BUILD_DIR}/mbedtls-${MBEDTLS_VERSION}"
+        rm -rf build && mkdir -p build && cd build
+        cmake -DCMAKE_TOOLCHAIN_FILE="${BUILD_DIR}/cross-${TARGET}.cmake" \
+            -DCMAKE_BUILD_TYPE=RELEASE \
+            -DCMAKE_INSTALL_PREFIX="${STAGE_DIR}" \
+            -DENABLE_TESTING=OFF \
+            ..
+        make -j"$(nproc)" install
     popd
 }
 
@@ -104,7 +84,9 @@ EOF
 build_libwebsockets() {
     echo "=== Building libwebsockets-${LIBWEBSOCKETS_VERSION} (${TARGET})..."
     curl -fSsLo- "https://github.com/warmcat/libwebsockets/archive/v${LIBWEBSOCKETS_VERSION}.tar.gz" | tar xz -C "${BUILD_DIR}"
+    PATCH=$(dirname $(realpath "$0"))/lws.patch
     pushd "${BUILD_DIR}/libwebsockets-${LIBWEBSOCKETS_VERSION}"
+        patch -u lib/roles/ws/ext/extension-permessage-deflate.c $PATCH
         sed -i 's/ websockets_shared//g' cmake/libwebsockets-config.cmake.in
         rm -rf build && mkdir -p build && cd build
         cmake -DCMAKE_TOOLCHAIN_FILE="${BUILD_DIR}/cross-${TARGET}.cmake" \
@@ -113,7 +95,7 @@ build_libwebsockets() {
             -DCMAKE_FIND_LIBRARY_SUFFIXES=".a" \
             -DCMAKE_EXE_LINKER_FLAGS="-static" \
             -DLWS_WITHOUT_TESTAPPS=ON \
-            -DLWS_WITH_SSL=ON \
+            -DLWS_WITH_MBEDTLS=ON \
             -DLWS_WITH_LIBUV=ON \
             -DLWS_STATIC_PIC=ON \
             -DLWS_WITH_SHARED=OFF \
@@ -185,7 +167,7 @@ build() {
     build_zlib
     build_json-c
     build_libuv
-    build_openssl
+    build_mbedtls
     build_libwebsockets
     build_ttyd
 }
