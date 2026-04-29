@@ -1,0 +1,39 @@
+diff --git a/scripts/cross-build.sh b/scripts/cross-build.sh
+index 0e98c0c..9fd12d0 100755
+--- a/scripts/cross-build.sh
++++ b/scripts/cross-build.sh
+@@ -106,3 +106,5 @@ build_libwebsockets() {
+     curl -fSsLo- "https://github.com/warmcat/libwebsockets/archive/v${LIBWEBSOCKETS_VERSION}.tar.gz" | tar xz -C "${BUILD_DIR}"
++    PATCH=$(dirname $(realpath "$0"))/lws.patch
+     pushd "${BUILD_DIR}/libwebsockets-${LIBWEBSOCKETS_VERSION}"
++        patch -u lib/roles/ws/ext/extension-permessage-deflate.c $PATCH
+         sed -i 's/ websockets_shared//g' cmake/libwebsockets-config.cmake.in
+diff --git a/scripts/darwin-build.sh b/scripts/darwin-build.sh
+index b15bddc..36ded42 100755
+--- a/scripts/darwin-build.sh
++++ b/scripts/darwin-build.sh
+@@ -60,3 +60,5 @@ build_libwebsockets() {
+     curl -fSsLo- "https://github.com/warmcat/libwebsockets/archive/v${LIBWEBSOCKETS_VERSION}.tar.gz" | tar xz -C "${BUILD_DIR}"
++    PATCH=$(dirname $(realpath "$0"))/lws.patch
+     pushd "${BUILD_DIR}/libwebsockets-${LIBWEBSOCKETS_VERSION}"
++        patch -u lib/roles/ws/ext/extension-permessage-deflate.c $PATCH
+         sed -i '' 's/ websockets_shared//g' cmake/libwebsockets-config.cmake.in
+diff --git a/scripts/lws.patch b/scripts/lws.patch
+new file mode 100644
+index 0000000..92a5a42
+--- /dev/null
++++ b/scripts/lws.patch
+@@ -0,0 +1,13 @@
++diff --git a/lib/roles/ws/ext/extension-permessage-deflate.c b/lib/roles/ws/ext/extension-permessage-deflate.c
++index 790db4e0a..b492e78ce 100644
++--- a/lib/roles/ws/ext/extension-permessage-deflate.c
+++++ b/lib/roles/ws/ext/extension-permessage-deflate.c
++@@ -310,8 +310,3 @@ lws_extension_callback_pm_deflate(struct lws_context *context,
++ 
++-		/* COV says we can overflow if "eb_in.len == 0 and rx->avail_in == 4" */
++ 
++-		if ((unsigned int)priv->rx.avail_in > (unsigned int)pmdrx->eb_in.len) {
++-			lwsl_wsi_err(wsi, "rx buffer underflow");
++-			return PMDR_FAILED;
++-		}
++ 

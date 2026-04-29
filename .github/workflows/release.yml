@@ -205,6 +205,20 @@ jobs:
       with:
         repository: microsoft/vcpkg
         path: vcpkg
+    - name: Patch vcpkg
+      working-directory: vcpkg
+      shell: bash
+      run: |
+        git apply -v --unidiff-zero <<'EOF'
+        diff --git a/ports/libwebsockets/portfile.cmake b/ports/libwebsockets/portfile.cmake
+        index 36aecde..c24c80e 100644
+        --- a/ports/libwebsockets/portfile.cmake
+        +++ b/ports/libwebsockets/portfile.cmake
+        @@ -7,1 +7,2 @@ vcpkg_from_github(
+             PATCHES
+        +        lws.patch
+        EOF
+        mv -v ../scripts/lws.patch ./ports/libwebsockets/
     - name: Bootstrap vcpkg
       shell: pwsh
       run: ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.bat
