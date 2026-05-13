@@ -1,0 +1,19 @@
+diff --git a/src/protocol.c b/src/protocol.c
+index adb7d63..cd5d40d 100644
+--- a/src/protocol.c
++++ b/src/protocol.c
+@@ -254,2 +254,5 @@ int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void *user,
+       lwsl_notice("WS   %s - %s, clients: %d\n", pss->path, pss->address, server->client_count);
++#ifndef LWS_WITHOUT_EXTENSIONS
++      lws_set_extension_option(wsi, "permessage-deflate", "rx_buf_size", "31");
++#endif
+       break;
+diff --git a/src/server.c b/src/server.c
+index 183fa3a..9817844 100644
+--- a/src/server.c
++++ b/src/server.c
+@@ -30,3 +30,3 @@ extern int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void
+ static const struct lws_protocols protocols[] = {{"http-only", callback_http, sizeof(struct pss_http), 0},
+-                                                 {"tty", callback_tty, sizeof(struct pss_tty), 0},
++                                                 {"tty", callback_tty, sizeof(struct pss_tty), 1048576},
+                                                  {NULL, NULL, 0, 0}};
