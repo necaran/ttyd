@@ -28,7 +28,7 @@ extern int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void 
 
 // websocket protocols
 static const struct lws_protocols protocols[] = {{"http-only", callback_http, sizeof(struct pss_http), 0},
-                                                 {"tty", callback_tty, sizeof(struct pss_tty), 0},
+                                                 {"tty", callback_tty, sizeof(struct pss_tty), 1048576},
                                                  {NULL, NULL, 0, 0}};
 
 #ifndef LWS_WITHOUT_EXTENSIONS

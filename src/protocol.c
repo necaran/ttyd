@@ -252,6 +252,9 @@ int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void *user, 
 
       lws_get_peer_simple(lws_get_network_wsi(wsi), pss->address, sizeof(pss->address));
       lwsl_notice("WS   %s - %s, clients: %d\n", pss->path, pss->address, server->client_count);
+#ifndef LWS_WITHOUT_EXTENSIONS
+      lws_set_extension_option(wsi, "permessage-deflate", "rx_buf_size", "31");
+#endif
       break;
 
     case LWS_CALLBACK_SERVER_WRITEABLE:
