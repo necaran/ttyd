@@ -1,0 +1,21 @@
+diff --git a/html/webpack.config.js b/html/webpack.config.js
+index 18bfcf3..5facfee 100644
+--- a/html/webpack.config.js
++++ b/html/webpack.config.js
+@@ -95,5 +95,14 @@ const prodConfig = {
+     optimization: {
+-        minimizer: [new TerserPlugin(), new CssMinimizerPlugin()],
++        minimizer: [
++            new TerserPlugin({
++                minify: TerserPlugin.uglifyJsMinify,
++                terserOptions: { compress: { passes: 10 }, output: { comments: false } },
++                extractComments: false,
++            }),
++            new CssMinimizerPlugin({
++                minimizerOptions: { level: 2 },
++                minify: CssMinimizerPlugin.cleanCssMinify,
++            }),
++        ],
+     },
+-    devtool: 'source-map',
+ };
