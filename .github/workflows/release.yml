@@ -204,6 +204,9 @@ jobs:
       with:
         repository: microsoft/vcpkg
         path: vcpkg
+    - name: Patch vcpkg
+      shell: bash
+      run: sed -Ei 's/(-DLWS_WITH_HTTP2)=ON/\1=0/' vcpkg/ports/libwebsockets/portfile.cmake
     - name: Bootstrap vcpkg
       run: ./vcpkg/bootstrap-vcpkg.bat
     - name: Install dependencies
