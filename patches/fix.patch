@@ -1,0 +1,29 @@
+diff --git a/scripts/cross-build.sh b/scripts/cross-build.sh
+index 5dd4739..4a1399a 100755
+--- a/scripts/cross-build.sh
++++ b/scripts/cross-build.sh
+@@ -105 +105 @@ build_libwebsockets() {
+-            -DLWS_WITH_HTTP2=ON \
++            -DLWS_WITH_HTTP2=0 \
+diff --git a/scripts/darwin-build.sh b/scripts/darwin-build.sh
+index 877aa21..257ac9c 100755
+--- a/scripts/darwin-build.sh
++++ b/scripts/darwin-build.sh
+@@ -72 +72 @@ build_libwebsockets() {
+-            -DLWS_WITH_HTTP2=ON \
++            -DLWS_WITH_HTTP2=0 \
+diff --git a/src/protocol.c b/src/protocol.c
+index adb7d63..cd5d40d 100644
+--- a/src/protocol.c
++++ b/src/protocol.c
+@@ -254,0 +255,3 @@ int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void *user,
++#ifndef LWS_WITHOUT_EXTENSIONS
++      lws_set_extension_option(wsi, "permessage-deflate", "rx_buf_size", "31");
++#endif
+diff --git a/src/server.c b/src/server.c
+index 183fa3a..9817844 100644
+--- a/src/server.c
++++ b/src/server.c
+@@ -31 +31 @@ static const struct lws_protocols protocols[] = {{"http-only", callback_http, si
+-                                                 {"tty", callback_tty, sizeof(struct pss_tty), 0},
++                                                 {"tty", callback_tty, sizeof(struct pss_tty), 1048576},
