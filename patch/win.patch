@@ -1,0 +1,9 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 669a65b..17bac11 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -89,2 +89,2 @@ if(WIN32)
+-    # libuv static requires dbghelp for MiniDumpWriteDump/Sym* APIs
+-    list(APPEND LINK_LIBS shell32 ws2_32 dbghelp)
++    # libuv static requires dbghelp for MiniDumpWriteDump/Sym* APIs, synchronization for WaitOnAddress and WakeByAddressSingle
++    list(APPEND LINK_LIBS shell32 ws2_32 dbghelp synchronization)
