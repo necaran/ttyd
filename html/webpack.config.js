@@ -1,7 +1,6 @@
 const path = require('path');
 const { merge } = require('webpack-merge');
 const ESLintPlugin = require('eslint-webpack-plugin');
-const CopyWebpackPlugin = require('copy-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const CssMinimizerPlugin = require('css-minimizer-webpack-plugin');
@@ -29,6 +28,10 @@ const baseConfig = {
                 test: /\.s?[ac]ss$/,
                 use: [devMode ? 'style-loader' : MiniCssExtractPlugin.loader, 'css-loader', 'sass-loader'],
             },
+            {
+                test: /\.(ttf|otf|eot|woff|woff2)$/,
+                type: 'asset/inline',
+            },
         ],
     },
     resolve: {
@@ -38,9 +41,6 @@ const baseConfig = {
         new ESLintPlugin({
             context: path.resolve(__dirname, '.'),
             extensions: ['js', 'jsx', 'ts', 'tsx'],
-        }),
-        new CopyWebpackPlugin({
-            patterns: [{ from: './favicon.png', to: '.' }],
         }),
         new MiniCssExtractPlugin({
             filename: devMode ? '[name].css' : '[name].[contenthash].css',
@@ -52,7 +52,7 @@ const baseConfig = {
                 removeComments: true,
                 collapseWhitespace: true,
             },
-            title: 'ttyd - Terminal',
+            title: 'ttyd',
             template: './template.html',
         }),
     ],
@@ -93,9 +93,18 @@ const devConfig = {
 const prodConfig = {
     mode: 'production',
     optimization: {
-        minimizer: [new TerserPlugin(), new CssMinimizerPlugin()],
+        minimizer: [
+            new TerserPlugin({
+                minify: TerserPlugin.uglifyJsMinify,
+                terserOptions: { compress: { passes: 10 }, output: { comments: false } },
+                extractComments: false,
+            }),
+            new CssMinimizerPlugin({
+                minimizerOptions: { level: 2 },
+                minify: CssMinimizerPlugin.cleanCssMinify,
+            }),
+        ],
     },
-    devtool: 'source-map',
 };
 
 module.exports = merge(baseConfig, devMode ? devConfig : prodConfig);
