@@ -10,7 +10,7 @@ const path = window.location.pathname.replace(/[/]+$/, '');
 const wsUrl = [protocol, '//', window.location.host, path, '/ws', window.location.search].join('');
 const tokenUrl = [window.location.protocol, '//', window.location.host, path, '/token'].join('');
 const clientOptions = {
-    rendererType: 'webgl',
+    rendererType: 'canvas',
     disableLeaveAlert: false,
     disableResizeOverlay: false,
     enableZmodem: false,
@@ -21,11 +21,13 @@ const clientOptions = {
     unicodeVersion: '11',
 } as ClientOptions;
 const termOptions = {
-    fontSize: 13,
-    fontFamily: 'Consolas,Liberation Mono,Menlo,Courier,monospace',
+    allowTransparency: true,
+    fontFamily: '_,M,monospace',
+    fontSize: 16,
+    lineHeight: 1.125,
     theme: {
         foreground: '#d2d2d2',
-        background: '#2b2b2b',
+        background: '#1110',
         cursor: '#adadad',
         black: '#000000',
         red: '#d81e00',

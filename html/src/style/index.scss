@@ -11,8 +11,24 @@ body {
   height: 100%;
   margin: 0 auto;
   padding: 0;
-  .terminal {
-    padding: 5px;
-    height: calc(100% - 10px);
-  }
+}
+
+.xterm {
+  height: 100%;
+  margin-right: 15px;
+}
+
+html {
+  color-scheme: dark;
+  margin-right: -15px;
+}
+
+@font-face {
+  font-family: _;
+  src: url(SymbolsNerdFontMono-Regular.woff2) format(WOFF2);
+}
+
+@font-face {
+  font-family: M;
+  src: url(UbuntuMono-Bront.woff2) format(WOFF2);
 }
