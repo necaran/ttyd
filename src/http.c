@@ -155,7 +155,7 @@ int callback_http(struct lws *wsi, enum lws_callback_reasons reason, void *user,
         size_t output_len = index_html_len;
         if (lws_add_http_header_status(wsi, HTTP_STATUS_OK, &p, end) ||
             lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_CONTENT_TYPE, (const unsigned char *)content_type, 9, &p,
-                                         end))
+                                         end) || lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_CACHE_CONTROL, (const unsigned char *)"public, max-age=31536000", 24, &p, end))
           return 1;
 #ifdef LWS_WITH_HTTP_STREAM_COMPRESSION
         if (!uncompress_html(&output, &output_len)) return 1;

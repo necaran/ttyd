@@ -458,6 +458,17 @@ export class Xterm {
                 default:
                     console.log(`[ttyd] option: ${key}=${JSON.stringify(value)}`);
                     if (terminal.options[key] instanceof Object) {
+                        const { background } = value;
+                        if (background) {
+                            const styleSheet = (document.adoptedStyleSheets[0] = new CSSStyleSheet()),
+                                style = (
+                                    styleSheet.cssRules[styleSheet.insertRule('.xterm-viewport{}')] as CSSStyleRule
+                                ).style;
+                            style.setProperty('background', background, 'important');
+                            value.background = style.backgroundColor
+                                .replace(/.+?(\d+), (\d+), (\d+).+/, (m, r, g, b) => `rgba(${r},${g},${b},0)`)
+                                .replace(/^$|transparent/, '#1110');
+                        }
                         terminal.options[key] = Object.assign({}, terminal.options[key], value);
                     } else {
                         terminal.options[key] = value;
