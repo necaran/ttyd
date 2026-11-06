@@ -54,7 +54,7 @@ task(
                     return cb(null, file);
                 })
             )
-            .pipe(gzip())
+            .pipe(gzip({ gzipOptions: { level: 9 } }))
             .pipe(
                 through2.obj((file, enc, cb) => {
                     const buf = file.contents;
