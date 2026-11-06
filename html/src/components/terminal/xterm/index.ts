@@ -13,13 +13,9 @@ import { ZmodemAddon } from './addons/zmodem';
 
 import '@xterm/xterm/css/xterm.css';
 
-interface TtydTerminal extends Terminal {
-    fit(): void;
-}
-
 declare global {
     interface Window {
-        term: TtydTerminal;
+        term: Terminal;
     }
 }
 
@@ -155,10 +151,7 @@ export class Xterm {
     public open(parent: HTMLElement) {
         this.terminal = new Terminal(this.options.termOptions);
         const { terminal, fitAddon, overlayAddon, clipboardAddon, webLinksAddon } = this;
-        window.term = terminal as TtydTerminal;
-        window.term.fit = () => {
-            this.fitAddon.fit();
-        };
+        window.term = terminal;
 
         terminal.loadAddon(fitAddon);
         terminal.loadAddon(overlayAddon);
@@ -458,14 +451,23 @@ export class Xterm {
                 default:
                     console.log(`[ttyd] option: ${key}=${JSON.stringify(value)}`);
                     if (terminal.options[key] instanceof Object) {
+                        const { background } = value;
+                        if (background) {
+                            // .xterm
+                            const { style } = document.styleSheets[0].cssRules[0] as CSSStyleRule;
+                            style.background = background;
+                            value.background = style.backgroundColor
+                                .replace(/.+?(\d+), (\d+), (\d+).+/, (m, r, g, b) => `rgba(${r},${g},${b},0)`)
+                                .replace(/^$|transparent/, '#1110');
+                        }
                         terminal.options[key] = Object.assign({}, terminal.options[key], value);
                     } else {
                         terminal.options[key] = value;
                     }
-                    if (key.indexOf('font') === 0) fitAddon.fit();
                     break;
             }
         }
+        fitAddon.fit();
     }
 
     @bind
@@ -531,5 +533,6 @@ export class Xterm {
             default:
                 break;
         }
+        this.fitAddon.fit();
     }
 }
