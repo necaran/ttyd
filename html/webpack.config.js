@@ -93,9 +93,18 @@ const devConfig = {
 const prodConfig = {
     mode: 'production',
     optimization: {
-        minimizer: [new TerserPlugin(), new CssMinimizerPlugin()],
+        minimizer: [
+            new TerserPlugin({
+                minify: TerserPlugin.uglifyJsMinify,
+                terserOptions: { compress: { passes: 10 }, output: { comments: false } },
+                extractComments: false,
+            }),
+            new CssMinimizerPlugin({
+                minimizerOptions: { level: 2 },
+                minify: CssMinimizerPlugin.cleanCssMinify,
+            }),
+        ],
     },
-    devtool: 'source-map',
 };
 
 module.exports = merge(baseConfig, devMode ? devConfig : prodConfig);
