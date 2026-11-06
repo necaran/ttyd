@@ -26,7 +26,11 @@ const baseConfig = {
             },
             {
                 test: /\.s?[ac]ss$/,
-                use: [devMode ? 'style-loader' : MiniCssExtractPlugin.loader, 'css-loader', 'sass-loader'],
+                use: [
+                    devMode ? 'style-loader' : MiniCssExtractPlugin.loader,
+                    { loader: 'css-loader', options: { url: false } },
+                    'sass-loader',
+                ],
             },
         ],
     },
@@ -89,9 +93,20 @@ const devConfig = {
 const prodConfig = {
     mode: 'production',
     optimization: {
-        minimizer: [new TerserPlugin(), new CssMinimizerPlugin()],
+        chunkIds: 'total-size',
+        mangleExports: 'size',
+        moduleIds: 'size',
+        minimizer: [
+            new TerserPlugin({
+                minify: TerserPlugin.uglifyJsMinify,
+                terserOptions: { compress: { passes: 16 }, output: { comments: false } },
+                extractComments: false,
+            }),
+            new CssMinimizerPlugin({
+                minify: CssMinimizerPlugin.lightningCssMinify,
+            }),
+        ],
     },
-    devtool: 'source-map',
 };
 
 module.exports = merge(baseConfig, devMode ? devConfig : prodConfig);
