@@ -13,16 +13,6 @@ import { ZmodemAddon } from './addons/zmodem';
 
 import '@xterm/xterm/css/xterm.css';
 
-interface TtydTerminal extends Terminal {
-    fit(): void;
-}
-
-declare global {
-    interface Window {
-        term: TtydTerminal;
-    }
-}
-
 enum Command {
     // server side
     OUTPUT = '0',
@@ -155,10 +145,6 @@ export class Xterm {
     public open(parent: HTMLElement) {
         this.terminal = new Terminal(this.options.termOptions);
         const { terminal, fitAddon, overlayAddon, clipboardAddon, webLinksAddon } = this;
-        window.term = terminal as TtydTerminal;
-        window.term.fit = () => {
-            this.fitAddon.fit();
-        };
 
         terminal.loadAddon(fitAddon);
         terminal.loadAddon(overlayAddon);
@@ -462,10 +448,10 @@ export class Xterm {
                     } else {
                         terminal.options[key] = value;
                     }
-                    if (key.indexOf('font') === 0) fitAddon.fit();
                     break;
             }
         }
+        fitAddon.fit();
     }
 
     @bind

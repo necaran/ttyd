@@ -1,18 +1,11 @@
 html,
 body {
+  color-scheme: dark;
   height: 100%;
-  min-height: 100%;
   margin: 0;
   overflow: hidden;
 }
-
+.xterm,
 #terminal-container {
-  width: auto;
   height: 100%;
-  margin: 0 auto;
-  padding: 0;
-  .terminal {
-    padding: 5px;
-    height: calc(100% - 10px);
-  }
 }
