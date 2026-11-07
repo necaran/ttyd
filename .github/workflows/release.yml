@@ -169,6 +169,8 @@ jobs:
         path: vcpkg
     - name: Bootstrap vcpkg
       run: vcpkg/bootstrap-vcpkg.bat
+    - name: Patch vcpkg
+      run: git -C vcpkg apply -v --unidiff-zero ../vcpkg.patch
     - name: Install dependencies
       run: vcpkg/vcpkg.exe install --triplet "$env:VCPKG_TRIPLET" getopt-win32 json-c libwebsockets
     - name: Cross build ${{matrix.arch}}

@@ -1,0 +1,124 @@
+diff --git a/ports/libwebsockets/export-include-path.patch b/ports/libwebsockets/export-include-path.patch
+index 9a7ba43c..39f9391b 100644
+--- a/ports/libwebsockets/export-include-path.patch
++++ b/ports/libwebsockets/export-include-path.patch
+@@ -10 +10 @@ index e067e99..35dbddd 100644
+--    set(LWS__INCLUDE_DIRS "\${LWS_CMAKE_DIR}/${REL_INCLUDE_DIR}")
++-    set(LWS__INCLUDE_DIRS "\${LWS_CMAKE_DIR}/${REL_INCLUDE_DIR}" ${LWS_DEP_INCLUDE_DIRS})
+@@ -12 +12 @@ index e067e99..35dbddd 100644
+-+	set(LWS__INCLUDE_DIRS "\${CMAKE_CURRENT_LIST_DIR}/../include")
+++	set(LWS__INCLUDE_DIRS "\${CMAKE_CURRENT_LIST_DIR}/../include" ${LWS_DEP_INCLUDE_DIRS})
+@@ -14,2 +14,2 @@ index e067e99..35dbddd 100644
+- if (DEFINED OPENSSL_INCLUDE_DIRS)
+- 	set(LWS__INCLUDE_DIRS "${LWS__INCLUDE_DIRS};${OPENSSL_INCLUDE_DIRS}")
++ 
++ set(STRIPPED_LIB_LIST_AT_END "")
+diff --git a/ports/libwebsockets/fix-build-error.patch b/ports/libwebsockets/fix-build-error.patch
+index 204d4962..7d501e58 100644
+--- a/ports/libwebsockets/fix-build-error.patch
++++ b/ports/libwebsockets/fix-build-error.patch
+@@ -4,21 +4,5 @@ diff --git a/CMakeLists.txt b/CMakeLists.txt
+-@@ -494,6 +494,11 @@
+- set(LWS_EXT_PTHREAD_INCLUDE_DIR CACHE PATH "Path to an external pthreads include directory")
+- set(LWS_EXT_PTHREAD_LIBRARIES CACHE PATH "Path to an external pthreads library")
+- 
+-+if(WIN32)
+-+    find_package(pthreads_windows REQUIRED)
+-+    set(LWS_EXT_PTHREAD_INCLUDE_DIR ${PThreads4W_INCLUDE_DIR})
+-+    set(LWS_EXT_PTHREAD_LIBRARIES ${PThreads4W_LIBRARY})
+-+endif()
+- 
+- if (LWS_WITH_HTTP_STREAM_COMPRESSION)
+- 	set(LWS_WITH_ZLIB 1)
+-@@ -850,7 +855,7 @@
+- 	# Turn off pointless microsoft security warnings.
+- 	add_definitions(-D_CRT_SECURE_NO_DEPRECATE -D_CRT_NONSTDC_NO_DEPRECATE)
+- 	# Fail the build if any warnings
+--	add_compile_options(/W3 /WX)
+-+	add_compile_options(/W3 /WX /wd4142 /wd4267 /wd4996)
+- 	# Unbreak MSVC broken preprocessor __VA_ARGS__ behaviour
+- 	if (MSVC_VERSION GREATER 1925)
+- 		add_compile_options(/Zc:preprocessor /wd5105)
++@@ -852,3 +853,3 @@
++ 	if ("${DISABLE_WERROR}" STREQUAL "OFF")
++-		add_compile_options(/W3 /WX)
+++		add_compile_options(/W3 /WX /wd4142 /wd4267 /wd4996)
++ 	else()
+diff --git a/ports/libwebsockets/portfile.cmake b/ports/libwebsockets/portfile.cmake
+index 8c644890..3232daf1 100644
+--- a/ports/libwebsockets/portfile.cmake
++++ b/ports/libwebsockets/portfile.cmake
+@@ -5 +5 @@ vcpkg_from_github(
+-    SHA512 77fcb15c325d514fee18193a6509755618ce4232115259377d67f93015490a11642f5974fddd2efebc89496e28a52f0a135b6635c662be1e2c641aaa68397b11
++    SHA512 5bb4fcbed0e651248fc62a50ae5db345db394a7fd0ce0651ce6a67f8e9aece5c0c71de703354e971851505f82f96c40eda8973129b38d585013bc04c18129e75
+@@ -152,2 +152,39 @@ vcpkg_cmake_configure(
+-        -DLWS_WITH_HTTP_STREAM_COMPRESSION=ON # Since zlib is already a dependency
+-        -DLWS_WITH_EXTERNAL_POLL=ON
++-DLWS_HAVE_PTHREAD_H=0 -DLWS_WITH_SCHANNEL=0
++-DLWS_ROLE_RAW_FILE=OFF
++-DLWS_WITH_HTTP_BASIC_AUTH=OFF
++-DLWS_WITH_HTTP_STREAM_COMPRESSION=0
++-DLWS_WITH_UDP=OFF
++-DLWS_WITHOUT_CLIENT=ON
++-DLWS_WITHOUT_EXTENSIONS=OFF
++-DLWS_WITH_LEJP=OFF
++-DLWS_WITH_LEJP_CONF=OFF
++-DLWS_WITH_LWSAC=OFF
++-DLWS_WITH_SEQUENCER=OFF
++-DLWS_WITH_UPNG=OFF
++-DLWS_WITH_JPEG=OFF
++-DLWS_WITH_DLO=OFF
++-DLWS_WITH_SYS_STATE=OFF
++-DLWS_WITH_SYS_SMD=OFF
++-DLWS_WITH_SECURE_STREAMS=OFF
++-DDISABLE_WERROR=1
++-DLWS_WITH_HTTP_UNCOMMON_HEADERS=1
++-DLWS_WITH_GENCRYPTO=1
++-DLWS_WITH_CUSTOM_HEADERS=1
++-DLWS_WITH_FILE_OPS=1
++-DLWS_WITH_SYS_ASYNC_DNS=0
++-DLWS_WITH_SYS_INFO=0
++-DLWS_WITH_HTTP_DIGEST_AUTH=0
++-DLWS_WITH_GZINFLATE=0
++-DLWS_WITH_SVG=0
++-DLWS_WITH_GIF=0
++-DLWS_WITH_LHP=0
++-DLWS_WITH_HL=0
++-DLWS_WITH_MD=0
++-DLWS_WITH_JSONRPC=0
++-DLWS_WITH_STUB=0
++-DLWS_WITH_DIR=0
++-DLWS_WITH_MINIMAL_EXAMPLES=0
++-DLWS_WITH_CONMON=0
++-DLWS_WITH_WOL=0
++-DLWS_WITH_CACHE_NSCOOKIEJAR=0
++-DLWS_WITH_CACHE_BLOB=0
+diff --git a/ports/libwebsockets/vcpkg.json b/ports/libwebsockets/vcpkg.json
+index 41b1e5c1..d366d939 100644
+--- a/ports/libwebsockets/vcpkg.json
++++ b/ports/libwebsockets/vcpkg.json
+@@ -3 +3 @@
+-  "version-semver": "4.5.8",
++  "version-semver": "5.1.0",
+@@ -15 +14,0 @@
+-    "pthreads",
+diff --git a/ports/openssl/portfile.cmake b/ports/openssl/portfile.cmake
+index 813b8f4f..1aae9edb 100644
+--- a/ports/openssl/portfile.cmake
++++ b/ports/openssl/portfile.cmake
+@@ -29,2 +29,13 @@ vcpkg_list(SET CONFIGURE_OPTIONS
+-    enable-static-engine
+-    enable-capieng
++no-engine
++no-apps no-tls1 no-tls1_1
++no-err no-filenames no-legacy
++no-async no-autoerrinit no-cmp no-cms no-comp no-ct no-dgram no-dso no-gost no-http no-module no-nextprotoneg
++no-posix-io no-rdrand no-rfc3779 no-sm2-precomp no-srp no-srtp no-ssl-trace no-ts no-uplink no-integrity-only-ciphers
++no-aria no-bf no-blake2 no-camellia no-cast no-cmac
++no-des no-dh no-dsa
++no-ec2m no-idea
++no-md4 no-mdc2
++no-ml-dsa
++no-ocb no-rc2 no-rc4 no-rmd160 no-scrypt
++no-seed no-siphash no-siv no-slh-dsa no-sm2 no-sm3 no-sm4
++no-whirlpool
