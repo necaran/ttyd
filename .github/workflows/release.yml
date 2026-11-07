@@ -3,36 +3,187 @@ name: release
 on:
   push:
     tags: ["*"]
+env:
+  GH_TOKEN: ${{github.token}}
+  GH_REPO: ${{github.repository}}
+permissions:
+  contents: write
+
 
 jobs:
-  build:
-    uses: ./.github/workflows/backend.yml
-  publish:
-    needs: [build]
-    runs-on: ubuntu-24.04
+  frontend:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - name: Check version bump
-        run: |
-          TAG=$(git describe --tags --match "[0-9]*.[0-9]*.[0-9]*" --abbrev=8)
-          VERSION=$(grep project CMakeLists.txt| awk '{print $3}')
-          if [ "$TAG" != "$VERSION" ]; then
-            echo "=== Version in CMakeLists.txt and git tag does not match!"
-            echo "=== Git Tag: $TAG, Version: $VERSION"
-            exit 1
-          fi
-      - uses: actions/download-artifact@v8
-        
-      - run: |
-          mkdir build
-          for file in ttyd.*/*; do
-            target=$(echo $file | awk -F/ '{print $1}')
-            [[ $file == *.exe ]] && target="$target.exe"
-            mv $file build/$target
-          done
-          pushd build; sha256sum ttyd.* > SHA256SUMS; popd
-      - uses: ncipollo/release-action@v1
-        with:
-          artifacts: build/*
-          allowUpdates: true
-          draft: true
+    - uses: actions/checkout@v7
+    - name: Add fonts
+      run: |
+        sudo apt-get install --no-install-recommends --no-install-suggests -y fontforge
+        FONT_FILE=SymbolsNerdFontMono-Regular.ttf
+        wget -nv -O- https://github.com/ryanoasis/nerd-fonts/releases/latest/download/NerdFontsSymbolsOnly.tar.xz | tar vxJ --directory=/tmp "$FONT_FILE"
+        fontforge -lang=ff -c 'Open($1);Generate($2)' /tmp/"$FONT_FILE" ./html/src/style/"${FONT_FILE%.*}".woff2
+        FONT_FILE=UbuntuMono-Bront.ttf
+        wget -nv -O /tmp/"$FONT_FILE" https://raw.githubusercontent.com/necaran/bront/refs/heads/master/"$FONT_FILE"
+        fontforge -lang=ff -c 'Open($1);Generate($2)' /tmp/"$FONT_FILE" ./html/src/style/"${FONT_FILE%.*}".woff2
+    - uses: actions/setup-node@v7
+      with:
+        node-version: lts/*
+    - name: Install dependencies
+      working-directory: html
+      run: |
+        corepack enable
+        corepack prepare yarn@stable --activate
+        yarn install --mode=update-lockfile
+        yarn install
+        yarn run check
+    - name: Patch dependencies
+      working-directory: html
+      run: |
+        FILE=node_modules/@xterm/xterm/lib/xterm.js
+        echo ---
+        echo "* $FILE"
+        grep "$FILE" -m1 -oe 'this\.dimensions\.device\.char\.width=this\._charSizeService\.width\*[^,]\+,' &&
+        sed "$FILE" -i -e 's@=\(this\._charSizeService\.width\*[^,]\+\)@=Math.floor(\1)@'
+        echo "* $FILE patched"
+        grep "$FILE" -m1 -oe 'this\.dimensions\.device\.char\.width=Math.floor(this\._charSizeService\.width\*[^,]\+),'
+        echo ---
+        echo "* $FILE"
+        grep "$FILE" -m1 -oe 'css:"rgba(255, 255, 255, 0.3)",rgba:4294967117' &&
+        sed "$FILE" -i -e 's@css:"rgba(255, 255, 255, 0\.3)",rgba:4294967117@css:"#fff3",rgba:0xffffff33@'
+        echo "* $FILE patched"
+        grep "$FILE" -m1 -oe 'css:"#fff3",rgba:0xffffff33'
+        echo ---
+        FILE=node_modules/@xterm/xterm/css/xterm.css
+        echo "* $FILE"
+        grep "$FILE" -e '-ms-user-select' &&
+        sed "$FILE" -i -e '/-ms-user-select/d'
+        echo "* $FILE patched"
+        ! grep "$FILE" -e '-ms-user-select'
+        echo ---
+    - name: Build frontend
+      working-directory: html
+      run: yarn run build
+    - name: Upload src to release
+      run: |
+        tar vczf /tmp/src.tar.gz CMakeLists.txt cmake scripts src
+        TAG=$(git describe --tags)
+        gh release create "$TAG" --title "$TAG" --draft /tmp/src.tar.gz
+    - name: Create tar
+      run: tar cf /tmp/ttyd.tar .
+    - uses: actions/upload-artifact@v7
+      with:
+        name: ttyd.tar
+        path: /tmp/ttyd.tar
+
+
+  backend:
+    needs: [frontend]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [i686, x86_64, arm, armhf, aarch64, mips, mipsel, mips64, mips64el, ppc64, ppc64le, s390x]
+    steps:
+    - uses: actions/download-artifact@v8
+      with:
+        name: ttyd.tar
+    - name: Extract tar
+      run: tar xf ttyd.tar --strip-components=1
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install --no-install-recommends --no-install-suggests -y autoconf automake build-essential cmake curl libtool
+    - name: Cross build ${{matrix.arch}}
+      run: BUILD_TARGET=${{matrix.arch}} ./scripts/cross-build.sh
+    - name: Check lib dependencies
+      run: |
+        ! readelf -d build/ttyd | tee /dev/stderr | grep -q 'Shared'
+    - name: Upload to release
+      working-directory: build
+      run: |
+        [ -e 'ttyd.exe' ] &&
+        mv -v ttyd.exe ttyd.${{matrix.arch}}.exe ||
+        mv -v ttyd ttyd.${{matrix.arch}}
+        ls -l ttyd.*
+        TAG=$(git describe --tags)
+        gh release upload "$TAG" ttyd.*
+
+
+  backend_macos:
+    needs: [frontend]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - arch: arm64
+          runner: macos-latest
+        - arch: x86_64
+          runner: macos-26-intel
+    runs-on: ${{matrix.runner}}
+    steps:
+    - uses: actions/download-artifact@v8
+      with:
+        name: ttyd.tar
+    - name: Extract tar
+      run: tar xf ttyd.tar --strip-components=1
+    - name: Install dependencies
+      run: brew install --quiet autoconf automake cmake curl libtool
+    - name: Build ${{matrix.arch}}
+      run: sudo ./scripts/darwin-build.sh
+    - name: Check lib dependencies
+      run: |
+        ! otool -L build/ttyd | tee /dev/stderr | grep -qv -e ':' -e '/usr/lib/'
+    - name: Upload to release
+      working-directory: build
+      run: |
+        sudo mv -v ttyd ttyd.darwin.${{matrix.arch}}
+        ls -l ttyd.*
+        TAG=$(git describe --tags)
+        gh release upload "$TAG" ttyd.*
+
+
+  backend_msvc:
+    needs: [frontend]
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - arch: ARM64
+          triplet: arm64-windows-static
+        - arch: x64
+          triplet: x64-windows-static
+    env:
+      ARCH: ${{matrix.arch}}
+      VCPKG_TRIPLET: ${{matrix.triplet}}
+      TOOLCHAIN_FILE: vcpkg/scripts/buildsystems/vcpkg.cmake
+    steps:
+    - uses: actions/download-artifact@v8
+      with:
+        name: ttyd.tar
+    - name: Extract tar
+      run: tar xf ttyd.tar --strip-components=1
+    - name: Checkout vcpkg
+      uses: actions/checkout@v7
+      with:
+        repository: microsoft/vcpkg
+        path: vcpkg
+    - name: Bootstrap vcpkg
+      run: vcpkg/bootstrap-vcpkg.bat
+    - name: Install dependencies
+      run: vcpkg/vcpkg.exe install --triplet "$env:VCPKG_TRIPLET" getopt-win32 json-c libwebsockets
+    - name: Cross build ${{matrix.arch}}
+      run: |
+        cmake -S . -B build -A "$env:ARCH" -DVCPKG_TARGET_TRIPLET="$env:VCPKG_TRIPLET" -DCMAKE_TOOLCHAIN_FILE="$env:TOOLCHAIN_FILE" -DCMAKE_BUILD_TYPE=Release
+        cmake --build build --verbose --config Release
+    - name: Check lib dependencies
+      run: |
+        $dumpbin = (Resolve-Path "C:\Program Files\Microsoft Visual Studio\*\Enterprise\VC\Tools\MSVC\*\bin\*\*\dumpbin.exe")[-1].Path
+        & $dumpbin /dependents build/Release/ttyd.exe
+    - name: Upload to release
+      working-directory: build/Release
+      shell: bash
+      run: |
+        mv -v ttyd.exe ttyd.win.${ARCH,,}.exe
+        ls -l ttyd.*
+        TAG=$(git describe --tags)
+        gh release upload "$TAG" ttyd.*
