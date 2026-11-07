@@ -10,15 +10,15 @@ STAGE_ROOT="${STAGE_ROOT:-/opt/stage}"
 BUILD_ROOT="${BUILD_ROOT:-/opt/build}"
 BUILD_TARGET="${BUILD_TARGET:-x86_64}"
 
-ZLIB_VERSION="${ZLIB_VERSION:-1.3.2}"
-JSON_C_VERSION="${JSON_C_VERSION:-0.18}"
-OPENSSL_VERSION="${OPENSSL_VERSION:-3.6.1}"
-LIBUV_VERSION="${LIBUV_VERSION:-1.52.1}"
-LIBWEBSOCKETS_VERSION="${LIBWEBSOCKETS_VERSION:-4.5.7}"
+ZLIB_VERSION="${ZLIB_VERSION:-1.4}"
+JSON_C_VERSION="${JSON_C_VERSION:-0.19}"
+OPENSSL_VERSION="${OPENSSL_VERSION:-4.0.3}"
+LIBUV_VERSION="${LIBUV_VERSION:-1.53.0}"
+LIBWEBSOCKETS_VERSION="${LIBWEBSOCKETS_VERSION:-5.1.0}"
 
 build_zlib() {
     echo "=== Building zlib-${ZLIB_VERSION} (${TARGET})..."
-    curl -fSsLo- "https://zlib.net/zlib-${ZLIB_VERSION}.tar.gz" | tar xz -C "${BUILD_DIR}"
+    curl -fSsLo- "https://github.com/madler/zlib/releases/download/v${ZLIB_VERSION}/zlib-${ZLIB_VERSION}.tar.gz" | tar xz -C "${BUILD_DIR}"
     pushd "${BUILD_DIR}"/zlib-"${ZLIB_VERSION}"
         env CHOST="${TARGET}" ./configure --static --archs="-fPIC" --prefix="${STAGE_DIR}" --disable-crcvx
         make -j"$(nproc)" install
@@ -33,6 +33,7 @@ build_json-c() {
         cmake -DCMAKE_TOOLCHAIN_FILE="${BUILD_DIR}/cross-${TARGET}.cmake" \
             -DCMAKE_BUILD_TYPE=RELEASE \
             -DCMAKE_INSTALL_PREFIX="${STAGE_DIR}" \
+            -DBUILD_APPS=0 \
             -DBUILD_SHARED_LIBS=OFF \
             -DBUILD_TESTING=OFF \
             -DDISABLE_THREAD_LOCAL_STORAGE=ON \
@@ -62,15 +63,27 @@ build_openssl() {
     echo "=== Building openssl-${OPENSSL_VERSION} (${openssl_target})..."
     curl -sLo- "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz" | tar xz -C "${BUILD_DIR}"
     pushd "${BUILD_DIR}/openssl-${OPENSSL_VERSION}"
-        openssl_cflags="-fPIC -latomic"
+        ## configure without -flto to avoid "error: field 'ctx' has incomplete type"
+        openssl_cflags="${CFLAGS//-flto}"
         case ${BUILD_TARGET} in
             s390x) openssl_cflags="${openssl_cflags} -march=z10" ;;
-            win32)
-                curl -sLo- https://github.com/openssl/openssl/pull/29826.patch | patch -p1
-                ;;
+            x86_64|aarch64|mips64|mips64el|ppc64le) ec_opt='enable-ec_nistp_64_gcc_128' ;;
         esac
         env CC=gcc CROSS_COMPILE="${TARGET}-" CFLAGS="${openssl_cflags}" \
-            ./Configure "${openssl_target}" no-ssl3 no-err -DOPENSSL_SMALL_FOOTPRINT --prefix="${STAGE_DIR}" \
+            ./Configure "${openssl_target}" $ec_opt --prefix="${STAGE_DIR}" --libdir=lib \
+                no-shared no-ech \
+                no-apps no-docs no-tests no-tls1 no-tls1_1 \
+                no-err no-filenames no-legacy no-ui-console \
+                no-async no-autoerrinit no-cmp no-cms no-comp no-ct no-dgram no-dso no-gost no-http no-module no-nextprotoneg \
+                no-posix-io no-rdrand no-rfc3779 no-sm2-precomp no-srp no-srtp no-ssl-trace no-ts no-uplink no-integrity-only-ciphers \
+                no-aria no-bf no-blake2 no-camellia no-cast no-cmac \
+                no-des no-dh no-dsa \
+                no-ec2m no-hmac-drbg-kdf no-idea no-kbkdf no-krb5kdf \
+                no-md4 no-mdc2 \
+                no-ml-dsa \
+                no-ocb no-pvkkdf no-rc2 no-rc4 no-rmd160 no-scrypt \
+                no-seed no-siphash no-siv no-slh-dsa no-sm2 no-sm3 no-sm4 no-snmpkdf no-srtpkdf no-sshkdf no-sskdf \
+                no-x942kdf no-x963kdf no-whirlpool \
         && make -j"$(nproc)" all > /dev/null && make install_sw
     popd
 }
@@ -80,7 +93,7 @@ build_libuv() {
     curl -fSsLo- "https://dist.libuv.org/dist/v${LIBUV_VERSION}/libuv-v${LIBUV_VERSION}.tar.gz" | tar xz -C "${BUILD_DIR}"
     pushd "${BUILD_DIR}/libuv-v${LIBUV_VERSION}"
         ./autogen.sh
-        env CFLAGS=-fPIC ./configure --disable-shared --enable-static --prefix="${STAGE_DIR}" --host="${TARGET}"
+        ./configure --disable-shared --enable-static --prefix="${STAGE_DIR}" --host="${TARGET}"
         make -j"$(nproc)" install
     popd
 }
@@ -122,7 +135,7 @@ build_libwebsockets() {
             -DLWS_ROLE_RAW_FILE=OFF \
             -DLWS_WITH_HTTP2=ON \
             -DLWS_WITH_HTTP_BASIC_AUTH=OFF \
-            -DLWS_WITH_HTTP_STREAM_COMPRESSION=ON \
+            -DLWS_WITH_HTTP_STREAM_COMPRESSION=0 \
             -DLWS_WITH_UDP=OFF \
             -DLWS_WITHOUT_CLIENT=ON \
             -DLWS_WITHOUT_EXTENSIONS=OFF \
@@ -136,7 +149,31 @@ build_libwebsockets() {
             -DLWS_WITH_SYS_STATE=OFF \
             -DLWS_WITH_SYS_SMD=OFF \
             -DLWS_WITH_SECURE_STREAMS=OFF \
-            -DLWS_CTEST_INTERNET_AVAILABLE=OFF \
+            -DDISABLE_WERROR=1 \
+            -DLWS_WITH_HTTP_UNCOMMON_HEADERS=1 \
+            -DLWS_WITH_GENCRYPTO=1 \
+            -DLWS_WITH_CUSTOM_HEADERS=1 \
+            -DLWS_WITH_FILE_OPS=1 \
+            -DLWS_WITH_SYS_ASYNC_DNS=0 \
+            -DLWS_WITH_SYS_INFO=0 \
+            -DLWS_WITH_HTTP_DIGEST_AUTH=0 \
+            -DLWS_WITH_GZINFLATE=0 \
+            -DLWS_WITH_SVG=0 \
+            -DLWS_WITH_GIF=0 \
+            -DLWS_WITH_LHP=0 \
+            -DLWS_WITH_HL=0 \
+            -DLWS_WITH_MD=0 \
+            -DLWS_WITH_JSONRPC=0 \
+            -DLWS_WITH_STUB=0 \
+            -DLWS_WITH_DIR=0 \
+            -DLWS_WITH_MINIMAL_EXAMPLES=0 \
+            -DLWS_WITH_CONMON=0 \
+            -DLWS_WITH_WOL=0 \
+            -DLWS_WITH_CACHE_NSCOOKIEJAR=0 \
+            -DLWS_WITH_CACHE_BLOB=0 \
+            -DLWS_WITH_NETLINK=0 \
+            -DLWS_WITH_BINDTODEVICE=0 \
+            -DLWS_WITH_LIBCAP=0 \
             ..
         make -j"$(nproc)" install
     popd
@@ -145,14 +182,13 @@ build_libwebsockets() {
 build_ttyd() {
     echo "=== Building ttyd (${TARGET})..."
     rm -rf build && mkdir -p build && cd build
+    ## Some 32-bit targets (e.g. arm) link libatomic.so.1 when linking OpenSSL. Add -Wl,-Bstatic,-latomic to link libatomic.a.
     cmake -DCMAKE_TOOLCHAIN_FILE="${BUILD_DIR}/cross-${TARGET}.cmake" \
-        -DCMAKE_INSTALL_PREFIX="${STAGE_DIR}" \
         -DCMAKE_FIND_LIBRARY_SUFFIXES=".a" \
-        -DCMAKE_C_FLAGS="-Os -ffunction-sections -fdata-sections -fno-unwind-tables -fno-asynchronous-unwind-tables -flto" \
-        -DCMAKE_EXE_LINKER_FLAGS="-static -no-pie -Wl,-s -Wl,-Bsymbolic -Wl,--gc-sections" \
+        -DCMAKE_EXE_LINKER_FLAGS="-flto=auto -static-pie -s -Wl,-Bsymbolic,--gc-sections,-Bstatic,-latomic -L${STAGE_DIR}/lib" \
         -DCMAKE_BUILD_TYPE=RELEASE \
         ..
-    make install
+    make
 }
 
 build() {
@@ -179,6 +215,8 @@ build() {
     rm -rf "${STAGE_DIR}" "${BUILD_DIR}"
     mkdir -p "${STAGE_DIR}" "${BUILD_DIR}"
     export PKG_CONFIG_PATH="${STAGE_DIR}/lib/pkgconfig"
+    export CFLAGS='-flto -fPIE -D_FORTIFY_SOURCE=3 -fstack-protector-strong -fstack-clash-protection -O2 -fomit-frame-pointer -ffunction-sections -fdata-sections -fvisibility=hidden -fno-unwind-tables -fno-asynchronous-unwind-tables'
+    [ "$ALIAS" = 'i686' -o "$ALIAS" = 'x86_64' ] && export CFLAGS="$CFLAGS -fcf-protection"
 
     install_cmake_cross_file ${SYSTEM}
 

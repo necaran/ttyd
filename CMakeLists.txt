@@ -86,8 +86,8 @@ if(LWS_OPENSSL_ENABLED AND NOT LWS_MBEDTLS_ENABLED)
 endif()
 
 if(WIN32)
-    # libuv static requires dbghelp for MiniDumpWriteDump/Sym* APIs
-    list(APPEND LINK_LIBS shell32 ws2_32 dbghelp)
+    # libuv static requires dbghelp for MiniDumpWriteDump/Sym* APIs, synchronization for WaitOnAddress and WakeByAddressSingle
+    list(APPEND LINK_LIBS shell32 ws2_32 dbghelp synchronization)
     if(MSVC)
         find_package(getopt CONFIG)
         if(getopt_FOUND)
