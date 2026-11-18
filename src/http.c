@@ -2,6 +2,7 @@
 #include <string.h>
 #include <zlib.h>
 
+#include "fonts.h"
 #include "html.h"
 #include "server.h"
 #include "utils.h"
@@ -80,6 +81,8 @@ static bool uncompress_html(char **output, size_t *output_len) {
 }
 
 static void pss_buffer_free(struct pss_http *pss) {
+  for (embedded_font_t *f = embedded_fonts; f->path; f++)
+    if (pss->buffer == (char *)f->data) return;
   if (pss->buffer != (char *)index_html && pss->buffer != html_cache) free(pss->buffer);
 }
 
@@ -112,6 +115,21 @@ int callback_http(struct lws *wsi, enum lws_callback_reasons reason, void *user,
 
       p = buffer + LWS_PRE;
       end = p + sizeof(buffer) - LWS_PRE;
+
+      const char *cache_control = "public, max-age=31536000, immutable";
+      embedded_font_t *font;
+      for (font = embedded_fonts; font->path; font++)
+        if (strcmp(pss->path, font->path) == 0) {
+          if (lws_add_http_common_headers(wsi, HTTP_STATUS_OK, "font/woff2", *font->len, &p, end) ||
+              lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_CACHE_CONTROL, (unsigned char *)cache_control, 35, &p, end) ||
+              lws_finalize_http_header(wsi, &p, end) ||
+              lws_write(wsi, buffer + LWS_PRE, p - (buffer + LWS_PRE), LWS_WRITE_HTTP_HEADERS) < 0)
+            return 1;
+          pss->buffer = pss->ptr = (char *)font->data;
+          pss->len = *font->len;
+          lws_callback_on_writable(wsi);
+          return 0;
+        }
 
       if (strcmp(pss->path, endpoints.token) == 0) {
         const char *credential = server->credential != NULL ? server->credential : "";
@@ -154,6 +172,7 @@ int callback_http(struct lws *wsi, enum lws_callback_reasons reason, void *user,
         char *output = (char *)index_html;
         size_t output_len = index_html_len;
         if (lws_add_http_header_status(wsi, HTTP_STATUS_OK, &p, end) ||
+            lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_CACHE_CONTROL, (unsigned char *)cache_control, 24, &p, end) ||
             lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_CONTENT_TYPE, (const unsigned char *)content_type, 9, &p,
                                          end))
           return 1;

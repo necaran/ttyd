@@ -22,8 +22,9 @@ const clientOptions = {
 } as ClientOptions;
 const termOptions = {
     allowTransparency: true,
-    fontSize: 13,
-    fontFamily: 'Consolas,Liberation Mono,Menlo,Courier,monospace',
+    fontFamily: '_,monospace',
+    fontSize: 16,
+    lineHeight: 1.125,
     theme: {
         foreground: '#d2d2d2',
         background: '#1110',

@@ -23,7 +23,9 @@ export class Terminal extends Component<Props, State> {
     }
 
     async componentDidMount() {
-        await this.xterm.refreshToken();
+        (document.fonts as FontFaceSet & { add(font: FontFace): void }).add(
+            (await Promise.all([new FontFace('_', 'url(_.woff2)').load(), this.xterm.refreshToken()]))[0]
+        );
         this.xterm.open(this.container);
         this.xterm.connect();
     }
