@@ -9,11 +9,11 @@ export class OverlayAddon implements ITerminalAddon {
     private overlayTimeout?: number;
 
     constructor() {
-        this.overlayNode = document.createElement('div');
-        this.overlayNode.style.cssText =
+        const n = (this.overlayNode = document.createElement('div'));
+        n.style.cssText =
             'border-radius:8px;font-size:xx-large;opacity:.7;padding:.2em .5em;position:absolute;-webkit-user-select:none;user-select:none;transition:opacity .18s ease-in';
 
-        this.overlayNode.addEventListener(
+        n.addEventListener(
             'mousedown',
             e => {
                 e.preventDefault();
@@ -31,7 +31,8 @@ export class OverlayAddon implements ITerminalAddon {
 
     @bind
     showOverlay(msg: string, timeout?: number): void {
-        const { terminal, overlayNode } = this;
+        const { terminal, overlayNode } = this,
+            { setTimeout } = self;
         if (!terminal.element) return;
 
         overlayNode.style.color = '#eee';
@@ -52,9 +53,9 @@ export class OverlayAddon implements ITerminalAddon {
         if (this.overlayTimeout) clearTimeout(this.overlayTimeout);
         if (!timeout) return;
 
-        this.overlayTimeout = window.setTimeout(() => {
+        this.overlayTimeout = setTimeout(() => {
             overlayNode.style.opacity = '0';
-            this.overlayTimeout = window.setTimeout(() => {
+            this.overlayTimeout = setTimeout(() => {
                 if (overlayNode.parentNode) {
                     overlayNode.parentNode.removeChild(overlayNode);
                 }

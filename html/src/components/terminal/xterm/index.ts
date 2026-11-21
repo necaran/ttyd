@@ -3,13 +3,11 @@ import type { IDisposable, ITerminalOptions } from '@xterm/xterm';
 import { Terminal } from '@xterm/xterm';
 import { CanvasAddon } from '@xterm/addon-canvas';
 import { ClipboardAddon } from '@xterm/addon-clipboard';
-import { WebglAddon } from '@xterm/addon-webgl';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { ImageAddon } from '@xterm/addon-image';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { OverlayAddon } from './addons/overlay';
-import { ZmodemAddon } from './addons/zmodem';
 
 import '@xterm/xterm/css/xterm.css';
 
@@ -27,18 +25,15 @@ enum Command {
 }
 type Preferences = ITerminalOptions & ClientOptions;
 
-export type RendererType = 'dom' | 'canvas' | 'webgl';
+export type RendererType = 'dom' | 'canvas';
 
 export interface ClientOptions {
     rendererType: RendererType;
     disableLeaveAlert: boolean;
     disableResizeOverlay: boolean;
-    enableZmodem: boolean;
-    enableTrzsz: boolean;
     enableSixel: boolean;
     titleFixed?: string;
     isWindows: boolean;
-    trzszDragInitTimeout: number;
     unicodeVersion: string;
     closeOnDisconnect: boolean;
 }
@@ -78,9 +73,7 @@ export class Xterm {
     private overlayAddon = new OverlayAddon();
     private clipboardAddon = new ClipboardAddon();
     private webLinksAddon = new WebLinksAddon();
-    private webglAddon?: WebglAddon;
     private canvasAddon?: CanvasAddon;
-    private zmodemAddon?: ZmodemAddon;
 
     private socket?: WebSocket;
     private token: string;
@@ -94,16 +87,14 @@ export class Xterm {
 
     private writeFunc = (data: ArrayBuffer) => this.writeData(new Uint8Array(data));
 
-    constructor(
-        private options: XtermOptions,
-        private sendCb: () => void
-    ) {}
+    constructor(private options: XtermOptions) {}
 
     dispose() {
-        for (const d of this.disposables) {
+        const { disposables } = this;
+        for (const d of disposables) {
             d.dispose();
         }
-        this.disposables.length = 0;
+        disposables.length = 0;
     }
 
     @bind
@@ -113,20 +104,15 @@ export class Xterm {
     }
 
     @bind
-    public sendFile(files: FileList) {
-        this.zmodemAddon?.sendFile(files);
-    }
-
-    @bind
     public async refreshToken() {
+        const { tokenUrl } = this.options;
         try {
-            const resp = await fetch(this.options.tokenUrl);
+            const resp = await fetch(tokenUrl);
             if (resp.ok) {
-                const json = await resp.json();
-                this.token = json.token;
+                this.token = (await resp.json()).token;
             }
         } catch (e) {
-            console.error(`[ttyd] fetch ${this.options.tokenUrl}: `, e);
+            console.error(`[ttyd] fetch ${tokenUrl}: `, e);
         }
     }
 
@@ -143,8 +129,8 @@ export class Xterm {
 
     @bind
     public open(parent: HTMLElement) {
-        this.terminal = new Terminal(this.options.termOptions);
-        const { terminal, fitAddon, overlayAddon, clipboardAddon, webLinksAddon } = this;
+        const { fitAddon, overlayAddon, clipboardAddon, webLinksAddon, options } = this,
+            terminal = (this.terminal = new Terminal(options.termOptions));
 
         terminal.loadAddon(fitAddon);
         terminal.loadAddon(overlayAddon);
@@ -157,7 +143,7 @@ export class Xterm {
 
     @bind
     private initListeners() {
-        const { terminal, fitAddon, overlayAddon, register, sendData } = this;
+        const { terminal, fitAddon, overlayAddon, register, sendData, textEncoder, onWindowUnload } = this;
         register(
             terminal.onTitleChange(data => {
                 if (data && data !== '' && !this.titleFixed) {
@@ -166,46 +152,51 @@ export class Xterm {
             })
         );
         register(terminal.onData(data => sendData(data)));
-        register(terminal.onBinary(data => sendData(Uint8Array.from(data, v => v.charCodeAt(0)))));
         register(
             terminal.onResize(({ cols, rows }) => {
                 const msg = JSON.stringify({ columns: cols, rows: rows });
-                this.socket?.send(this.textEncoder.encode(Command.RESIZE_TERMINAL + msg));
+                this.socket?.send(textEncoder.encode(Command.RESIZE_TERMINAL + msg));
                 if (this.resizeOverlay) overlayAddon.showOverlay(`${cols}x${rows}`, 300);
             })
         );
         register(
             terminal.onSelectionChange(() => {
-                if (this.terminal.getSelection() === '') return;
+                if (terminal.getSelection() === '') return;
                 try {
                     document.execCommand('copy');
                 } catch (e) {
                     return;
                 }
-                this.overlayAddon?.showOverlay('\u2702', 200);
+                overlayAddon?.showOverlay('\u2702', 200);
             })
         );
-        register(addEventListener(window, 'resize', () => fitAddon.fit()));
-        register(addEventListener(window, 'beforeunload', this.onWindowUnload));
+        register(addEventListener(self, 'resize', () => fitAddon.fit()));
+        register(addEventListener(self, 'beforeunload', onWindowUnload));
     }
 
     @bind
     public writeData(data: string | Uint8Array) {
-        const { terminal, textEncoder } = this;
-        const { limit, highWater, lowWater } = this.options.flowControl;
+        const {
+            terminal,
+            textEncoder,
+            socket,
+            options: {
+                flowControl: { limit, highWater, lowWater },
+            },
+        } = this;
 
         this.written += data.length;
         if (this.written > limit) {
             terminal.write(data, () => {
                 this.pending = Math.max(this.pending - 1, 0);
                 if (this.pending < lowWater) {
-                    this.socket?.send(textEncoder.encode(Command.RESUME));
+                    socket?.send(textEncoder.encode(Command.RESUME));
                 }
             });
             this.pending++;
             this.written = 0;
             if (this.pending > highWater) {
-                this.socket?.send(textEncoder.encode(Command.PAUSE));
+                socket?.send(textEncoder.encode(Command.PAUSE));
             }
         } else {
             terminal.write(data);
@@ -213,32 +204,25 @@ export class Xterm {
     }
 
     @bind
-    public sendData(data: string | Uint8Array) {
+    public sendData(data: string) {
         const { socket, textEncoder } = this;
         if (socket?.readyState !== WebSocket.OPEN) return;
 
-        if (typeof data === 'string') {
-            const payload = new Uint8Array(data.length * 3 + 1);
-            payload[0] = Command.INPUT.charCodeAt(0);
-            const stats = textEncoder.encodeInto(data, payload.subarray(1));
-            socket.send(payload.subarray(0, (stats.written as number) + 1));
-        } else {
-            const payload = new Uint8Array(data.length + 1);
-            payload[0] = Command.INPUT.charCodeAt(0);
-            payload.set(data, 1);
-            socket.send(payload);
-        }
+        const payload = new Uint8Array(data.length * 3 + 1);
+        payload[0] = Command.INPUT.charCodeAt(0);
+        const stats = textEncoder.encodeInto(data, payload.subarray(1));
+        socket.send(payload.subarray(0, (stats.written as number) + 1));
     }
 
     @bind
     public connect() {
-        this.socket = new WebSocket(this.options.wsUrl, ['tty']);
-        const { socket, register } = this;
+        const { register, options, onSocketOpen, onSocketData, onSocketClose } = this,
+            socket = (this.socket = new WebSocket(options.wsUrl, ['tty']));
 
         socket.binaryType = 'arraybuffer';
-        register(addEventListener(socket, 'open', this.onSocketOpen));
-        register(addEventListener(socket, 'message', this.onSocketData as EventListener));
-        register(addEventListener(socket, 'close', this.onSocketClose as EventListener));
+        register(addEventListener(socket, 'open', onSocketOpen));
+        register(addEventListener(socket, 'message', onSocketData as EventListener));
+        register(addEventListener(socket, 'close', onSocketClose as EventListener));
         register(addEventListener(socket, 'error', () => (this.doReconnect = false)));
     }
 
@@ -246,9 +230,9 @@ export class Xterm {
     private onSocketOpen() {
         console.log('[ttyd] websocket connection opened');
 
-        const { textEncoder, terminal, overlayAddon } = this;
-        const msg = JSON.stringify({ AuthToken: this.token, columns: terminal.cols, rows: terminal.rows });
-        this.socket?.send(textEncoder.encode(msg));
+        const { textEncoder, terminal, overlayAddon, token, socket } = this;
+        const msg = JSON.stringify({ AuthToken: token, columns: terminal.cols, rows: terminal.rows });
+        socket?.send(textEncoder.encode(msg));
 
         if (this.opened) {
             terminal.reset();
@@ -293,13 +277,12 @@ export class Xterm {
 
     @bind
     private parseOptsFromUrlQuery(query: string): Preferences {
-        const { terminal } = this;
-        const { clientOptions } = this.options;
+        const { terminal, options } = this;
         const prefs = {} as Preferences;
         const queryObj = Array.from(new URLSearchParams(query) as unknown as Iterable<[string, string]>);
 
         for (const [k, queryVal] of queryObj) {
-            let v = clientOptions[k];
+            let v = options.clientOptions[k];
             if (v === undefined) v = terminal.options[k];
             switch (typeof v) {
                 case 'boolean':
@@ -327,7 +310,7 @@ export class Xterm {
 
     @bind
     private onSocketData(event: MessageEvent) {
-        const { textDecoder } = this;
+        const { textDecoder, options } = this;
         const rawData = event.data as ArrayBuffer;
         const cmd = String.fromCharCode(new Uint8Array(rawData)[0]);
         const data = rawData.slice(1);
@@ -337,14 +320,13 @@ export class Xterm {
                 this.writeFunc(data);
                 break;
             case Command.SET_WINDOW_TITLE:
-                this.title = textDecoder.decode(data);
-                document.title = this.title;
+                document.title = this.title = textDecoder.decode(data);
                 break;
             case Command.SET_PREFERENCES:
                 this.applyPreferences({
-                    ...this.options.clientOptions,
+                    ...options.clientOptions,
                     ...JSON.parse(textDecoder.decode(data)),
-                    ...this.parseOptsFromUrlQuery(window.location.search),
+                    ...this.parseOptsFromUrlQuery(location.search),
                 } as Preferences);
                 break;
             default:
@@ -355,20 +337,7 @@ export class Xterm {
 
     @bind
     private applyPreferences(prefs: Preferences) {
-        const { terminal, fitAddon, register } = this;
-        if (prefs.enableZmodem || prefs.enableTrzsz) {
-            this.zmodemAddon = new ZmodemAddon({
-                zmodem: prefs.enableZmodem,
-                trzsz: prefs.enableTrzsz,
-                windows: prefs.isWindows,
-                trzszDragInitTimeout: prefs.trzszDragInitTimeout,
-                onSend: this.sendCb,
-                sender: this.sendData,
-                writer: this.writeData,
-            });
-            this.writeFunc = data => this.zmodemAddon?.consume(data);
-            terminal.loadAddon(register(this.zmodemAddon));
-        }
+        const { terminal, fitAddon, register, onWindowUnload } = this;
 
         for (const [key, value] of Object.entries(prefs)) {
             switch (key) {
@@ -377,7 +346,7 @@ export class Xterm {
                     break;
                 case 'disableLeaveAlert':
                     if (value) {
-                        window.removeEventListener('beforeunload', this.onWindowUnload);
+                        removeEventListener('beforeunload', onWindowUnload);
                         console.log('[ttyd] Leave site alert disabled');
                     }
                     break;
@@ -393,15 +362,6 @@ export class Xterm {
                         this.reconnect = false;
                         this.doReconnect = false;
                     }
-                    break;
-                case 'enableZmodem':
-                    if (value) console.log('[ttyd] Zmodem enabled');
-                    break;
-                case 'enableTrzsz':
-                    if (value) console.log('[ttyd] trzsz enabled');
-                    break;
-                case 'trzszDragInitTimeout':
-                    if (value) console.log(`[ttyd] trzsz drag init timeout: ${value}`);
                     break;
                 case 'enableSixel':
                     if (value) {
@@ -456,66 +416,30 @@ export class Xterm {
 
     @bind
     private setRendererType(value: RendererType) {
-        const { terminal } = this;
+        const { canvasAddon, terminal } = this;
         const disposeCanvasRenderer = () => {
             try {
-                this.canvasAddon?.dispose();
+                canvasAddon?.dispose();
             } catch {
                 // ignore
             }
             this.canvasAddon = undefined;
         };
-        const disposeWebglRenderer = () => {
-            try {
-                this.webglAddon?.dispose();
-            } catch {
-                // ignore
-            }
-            this.webglAddon = undefined;
-        };
-        const enableCanvasRenderer = () => {
-            if (this.canvasAddon) return;
-            this.canvasAddon = new CanvasAddon();
-            disposeWebglRenderer();
-            try {
-                this.terminal.loadAddon(this.canvasAddon);
-                console.log('[ttyd] canvas renderer loaded');
-            } catch (e) {
-                console.log('[ttyd] canvas renderer could not be loaded, falling back to dom renderer', e);
-                disposeCanvasRenderer();
-            }
-        };
-        const enableWebglRenderer = () => {
-            if (this.webglAddon) return;
-            this.webglAddon = new WebglAddon();
-            disposeCanvasRenderer();
-            try {
-                this.webglAddon.onContextLoss(() => {
-                    this.webglAddon?.dispose();
-                });
-                terminal.loadAddon(this.webglAddon);
-                console.log('[ttyd] WebGL renderer loaded');
-            } catch (e) {
-                console.log('[ttyd] WebGL renderer could not be loaded, falling back to canvas renderer', e);
-                disposeWebglRenderer();
-                enableCanvasRenderer();
-            }
-        };
 
         switch (value) {
             case 'canvas':
-                enableCanvasRenderer();
-                break;
-            case 'webgl':
-                enableWebglRenderer();
+                if (!canvasAddon)
+                    try {
+                        terminal.loadAddon((this.canvasAddon = new CanvasAddon()));
+                        console.log('[ttyd] canvas renderer loaded');
+                    } catch (e) {
+                        console.log('[ttyd] canvas renderer could not be loaded, falling back to dom renderer', e);
+                        disposeCanvasRenderer();
+                    }
                 break;
             case 'dom':
-                disposeWebglRenderer();
                 disposeCanvasRenderer();
                 console.log('[ttyd] dom renderer loaded');
-                break;
-            default:
-                break;
         }
     }
 }
